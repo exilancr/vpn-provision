@@ -1,0 +1,97 @@
+
+
+- name: Install amneziawg package
+  become: yes
+  apt:
+    name: amneziawg
+    state: present
+
+- name: Copy 00-amnezia.conf to /etc/sysctl.d
+  become: yes
+  copy:
+    src: 00-amnezia-sysctl.conf
+    dest: /etc/sysctl.d/00-amnezia.conf
+
+- name: Install python3-qrcode package
+  become: yes
+  apt:
+    name: python3-qrcode
+    state: present
+
+- name: Create amnezia directory /tmp/amnezia
+  file:
+    path: /tmp/amnezia
+    state: directory
+
+- name: Copy awgcfg.py to /tmp/amnezia
+  copy:
+    src: awgcfg.py
+    dest: /tmp/amnezia/awgcfg.py
+
+
+- name: Generate amnezia configuration file (if  not exists)
+  block:
+    - name: Generate amnezia configuration file
+      become: yes
+      command: python3 /tmp/amnezia/awgcfg.py --make /etc/amnezia/amneziawg/awg0.conf -i 10.9.9.1/24 -p 10101
+      args:
+        chdir: /tmp/amnezia
+        creates:
+          - /etc/amnezia/amneziawg/awg0.conf
+          - /tmp/amnezia/.main.config
+  rescue:
+    - name: Remove /etc/amnezia/amneziawg/awg0.conf
+      become: yes
+      file:
+        path: /etc/amnezia/amneziawg/awg0.conf
+        state: absent
+    - name: Remove /tmp/amnezia/.main.config
+      become: yes
+      file:
+        path: /tmp/amnezia/.main.config
+        state: absent
+    - name: Generate again
+      become: yes
+      command: python3 /tmp/amnezia/awgcfg.py --make /etc/amnezia/amneziawg/awg0.conf -i 10.9.9.1/24 -p 10101
+      args:
+        chdir: /tmp/amnezia
+        creates:
+          - /etc/amnezia/amneziawg/awg0.conf
+          - /tmp/amnezia/.main.config
+
+
+
+- name: Generate client config template
+  become: yes
+  command: python3 /tmp/amnezia/awgcfg.py --create
+  args:
+    chdir: /tmp/amnezia
+    creates: /tmp/amnezia/_defclient.config
+
+
+- name: Add clients (its names stored in amnezia_clients variable)
+  become: yes
+  command: python3 /tmp/amnezia/awgcfg.py -a "{{ item.name }}"
+  args:
+    chdir: /tmp/amnezia
+  with_items: "{{ amnezia_clients }}"
+
+- name: Generate config files and qrcodes for clients (generates a bunch of files for each client at once)
+  become: yes
+  command: python3 /tmp/amnezia/awgcfg.py -c -q
+  args:
+    chdir: /tmp/amnezia
+    creates: "/tmp/amnezia/{{ item.name }}.conf"
+  with_items: "{{ amnezia_clients }}"
+
+- name: Enable kernel module amneziawg permanently
+  become: yes
+  command: modprobe amneziawg
+  ignore_errors: yes
+
+- name: Enable and start amneziawg service
+  become: yes
+  service:
+    name: awg-quick@awg0
+    enabled: yes
+    state: started

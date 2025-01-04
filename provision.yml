@@ -1,0 +1,8 @@
+- name: Provision Servers
+  hosts: all
+  vars_files:
+    - group_vars/all.yml
+
+  roles:
+    - role: general
+    - role: amnezia
