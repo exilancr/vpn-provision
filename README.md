@@ -20,4 +20,4 @@ ansible-playbook -i inventory.yml provision.yml
 
 3. Find client configs in `client_configs`
 
-4. Configure AmnesizWG client(s)
+4. Configure AmneziaWG client(s)
