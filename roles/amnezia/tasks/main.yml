@@ -18,6 +18,12 @@
     name: python3-qrcode
     state: present
 
+- name: Remove /tmp/amnezia directory
+  become: yes
+  file:
+    path: /tmp/amnezia
+    state: absent
+
 - name: Create amnezia directory /tmp/amnezia
   file:
     path: /tmp/amnezia
@@ -28,38 +34,20 @@
     src: awgcfg.py
     dest: /tmp/amnezia/awgcfg.py
 
+- name: Remove /etc/amnezia/amneziawg/awg0.conf
+  become: yes
+  file:
+    path: /etc/amnezia/amneziawg/awg0.conf
+    state: absent
 
-- name: Generate amnezia configuration file (if  not exists)
-  block:
-    - name: Generate amnezia configuration file
-      become: yes
-      command: python3 /tmp/amnezia/awgcfg.py --make /etc/amnezia/amneziawg/awg0.conf -i 10.9.9.1/24 -p 10101
-      args:
-        chdir: /tmp/amnezia
-        creates:
-          - /etc/amnezia/amneziawg/awg0.conf
-          - /tmp/amnezia/.main.config
-  rescue:
-    - name: Remove /etc/amnezia/amneziawg/awg0.conf
-      become: yes
-      file:
-        path: /etc/amnezia/amneziawg/awg0.conf
-        state: absent
-    - name: Remove /tmp/amnezia/.main.config
-      become: yes
-      file:
-        path: /tmp/amnezia/.main.config
-        state: absent
-    - name: Generate again
-      become: yes
-      command: python3 /tmp/amnezia/awgcfg.py --make /etc/amnezia/amneziawg/awg0.conf -i 10.9.9.1/24 -p 10101
-      args:
-        chdir: /tmp/amnezia
-        creates:
-          - /etc/amnezia/amneziawg/awg0.conf
-          - /tmp/amnezia/.main.config
-
-
+- name: Generate amnezia configuration file
+  become: yes
+  command: python3 /tmp/amnezia/awgcfg.py --make /etc/amnezia/amneziawg/awg0.conf -i 10.9.9.1/24 -p 10101
+  args:
+    chdir: /tmp/amnezia
+    creates:
+      - /etc/amnezia/amneziawg/awg0.conf
+      - /tmp/amnezia/.main.config
 
 - name: Generate client config template
   become: yes
@@ -83,6 +71,26 @@
     chdir: /tmp/amnezia
     creates: "/tmp/amnezia/{{ item.name }}.conf"
   with_items: "{{ amnezia_clients }}"
+
+- name: Copy client config files to local machine
+  fetch:
+    src: "/tmp/amnezia/{{ item.name }}.conf"
+    dest: "{{ playbook_dir }}/client_configs/{{ inventory_hostname }}/{{ item.name }}/client.conf"
+    flat: yes
+  with_items: "{{ amnezia_clients }}"
+
+- name: Copy client qrcodes to local machine
+  fetch:
+    src: "/tmp/amnezia/{{ item.name }}.png"
+    dest: "{{ playbook_dir }}/client_configs/{{ inventory_hostname }}/{{ item.name }}/qrcode.png"
+    flat: yes
+  with_items: "{{ amnezia_clients }}"
+
+- name: Remove /tmp/amnezia directory
+  become: yes
+  file:
+    path: /tmp/amnezia
+    state: absent
 
 - name: Enable kernel module amneziawg permanently
   become: yes
